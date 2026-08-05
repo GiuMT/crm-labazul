@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { normalizeEmail, origemLegivel, comprouByEmail, ltvByEmail } from '@/lib/queries'
+import { normalizeEmail, origemLegivel, comprouByEmail } from '@/lib/queries'
 
 /**
  * Ingestao de LEAD na fila de recuperacao. Protegido por x-ingest-token.
@@ -36,11 +36,16 @@ export async function POST(req: Request) {
   const criadoEm = b.criado_em ? new Date(b.criado_em as string) : new Date()
 
   // Confere a venda no momento da ingestao. O n8n ja filtra, mas o sync da Hotmart
-  // pode ter rodado entre a consulta dele e esta chamada — e abordar quem acabou
-  // de comprar e o pior erro que este CRM pode cometer.
-  const comprou = await comprouByEmail(email)
-  const ltv = comprou ? await ltvByEmail(email) : 0
+  // pode ter rodado entre a consulta dele e esta chamada.
+  //
+  // Se comprou, o lead NAO entra no CRM. Ele nunca esteve no funil de recuperacao:
+  // comprou sozinho. Cria-lo aqui inflaria o denominador da taxa de recuperacao
+  // com gente que a equipe nunca abordou — e a metrica pareceria pior do que e.
+  if (await comprouByEmail(email)) {
+    return NextResponse.json({ ok: true, ignorado: 'comprou antes de entrar na fila' })
+  }
 
+  // Daqui pra baixo, o lead nao comprou: entra na fila de contato.
   const existing = await prisma.contact.findUnique({ where: { email } })
   const contact = existing
     ? await prisma.contact.update({
@@ -54,8 +59,6 @@ export async function POST(req: Request) {
           source: existing.source || source,
           campaign: existing.campaign || campaign,
           evento: existing.evento || evento,
-          isCliente: comprou || existing.isCliente,
-          ltv: comprou ? ltv : existing.ltv,
         },
       })
     : await prisma.contact.create({
@@ -68,26 +71,18 @@ export async function POST(req: Request) {
           source,
           campaign,
           evento,
-          isCliente: comprou,
-          ltv,
           firstSeenAt: criadoEm,
         },
       })
 
-  // Card na coluna certa. Stage-driven: posicao 1 = fila de contato; isWon = comprou.
+  // Card na fila de contato. Stage-driven: posicao 1 e a primeira coluna,
+  // qualquer que seja o nome que ela tenha hoje.
   const jaTemDeal = await prisma.deal.findFirst({ where: { contactId: contact.id } })
   if (!jaTemDeal) {
-    const stage = comprou
-      ? await prisma.stage.findFirst({ where: { isWon: true } })
-      : await prisma.stage.findFirst({ where: { position: 1 } })
+    const stage = await prisma.stage.findFirst({ where: { position: 1 } })
     if (stage) {
       await prisma.deal.create({
-        data: {
-          contactId: contact.id,
-          stageId: stage.id,
-          status: comprou ? 'won' : 'open',
-          value: ltv,
-        },
+        data: { contactId: contact.id, stageId: stage.id, status: 'open' },
       })
     }
   }
@@ -103,5 +98,5 @@ export async function POST(req: Request) {
     })
   }
 
-  return NextResponse.json({ ok: true, contactId: contact.id, comprou })
+  return NextResponse.json({ ok: true, contactId: contact.id })
 }

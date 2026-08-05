@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { ltvByEmail } from '@/lib/queries'
 
 // Move um deal pra outro estagio. Ajusta o status (won/lost/open) pela flag do estagio destino.
 export async function POST(req: Request) {
@@ -23,7 +24,30 @@ export async function POST(req: Request) {
     data: { stageId, status, movedAt: new Date() },
   })
 
-  // registra na timeline
+  // O contato precisa acompanhar o card. Sem isto, arrastar para "Comprou"
+  // mudava so a coluna e o `isCliente` ficava false — a taxa de recuperacao
+  // na Analytics mostraria zero para sempre, sem nenhum sinal de erro.
+  const contato = await prisma.contact.findUnique({ where: { id: deal.contactId } })
+  if (contato) {
+    if (stage.isWon) {
+      // O valor vem da venda real na Hotmart, nao digitado a mao.
+      // Se o sync ainda nao trouxe a venda, o LTV fica 0 e se corrige
+      // na proxima vez que alguem mover o card.
+      const ltv = await ltvByEmail(contato.email).catch(() => 0)
+      await prisma.contact.update({
+        where: { id: contato.id },
+        data: { isCliente: true, ltv },
+      })
+      if (ltv > 0) await prisma.deal.update({ where: { id: deal.id }, data: { value: ltv } })
+    } else if (contato.isCliente) {
+      // Saiu da coluna de ganho (correcao de engano, reembolso): desfaz.
+      await prisma.contact.update({
+        where: { id: contato.id },
+        data: { isCliente: false, ltv: 0 },
+      })
+    }
+  }
+
   await prisma.activity.create({
     data: {
       contactId: deal.contactId,

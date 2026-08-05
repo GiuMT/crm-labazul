@@ -1,0 +1,156 @@
+// CRM LabAzul — schema Prisma
+// Tabelas proprias do CRM vivem no schema "crm" (isolado, descartavel).
+// A tabela "leads_captura" (public) JA EXISTE — alimentada pelo webhook do modal
+// da pagina de vendas T15. Aqui ela e apenas mapeada para leitura.
+// A tabela "vendas" (public) NAO e modelada — e lida por SQL cru (lib/queries.ts).
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["crm", "public"]
+}
+
+// ---------------------------------------------------------------------------
+// Schema CRM
+// ---------------------------------------------------------------------------
+
+/// Quem loga no CRM
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("admin") // admin | operador
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+  @@schema("crm")
+}
+
+/// O contato. Chave de deduplicacao = email (lower/trim no app).
+model Contact {
+  id          String   @id @default(cuid())
+  name        String?
+  email       String   @unique
+  phone       String? // 55 + DDD + numero, ja normalizado pelo modal
+  source      String? // origem legivel derivada do src: Meta Ads | Google | Direto
+  src         String? // rastreio cru vindo da URL da pagina
+  sck         String? // segundo parametro de rastreio (lancamento)
+  campaign    String? // utm_campaign
+  evento      String? // de qual lancamento veio o lead (ex.: LDF15)
+  isCliente   Boolean  @default(false)
+  ltv         Decimal  @default(0) @db.Decimal(12, 2)
+  firstSeenAt DateTime @default(now()) // "data de entrada" exibida no card
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deals      Deal[]
+  activities Activity[]
+
+  @@index([isCliente])
+  @@index([source])
+  @@index([evento])
+  @@map("contacts")
+  @@schema("crm")
+}
+
+/// Colunas do pipeline (stage-driven: telas leem por position/flags, nunca por nome).
+model Stage {
+  id       String  @id @default(cuid())
+  name     String
+  position Int     @unique
+  color    String?
+  isWon    Boolean @default(false)
+  isLost   Boolean @default(false)
+
+  deals Deal[]
+
+  @@map("stages")
+  @@schema("crm")
+}
+
+/// A oportunidade (1 por contato).
+model Deal {
+  id        String   @id @default(cuid())
+  contactId String
+  stageId   String
+  value     Decimal  @default(0) @db.Decimal(12, 2)
+  status    String   @default("open") // open | won | lost
+  movedAt   DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  stage   Stage   @relation(fields: [stageId], references: [id])
+
+  @@index([stageId])
+  @@index([contactId])
+  @@map("deals")
+  @@schema("crm")
+}
+
+/// Timeline do contato. type='compra' tem trava de idempotencia (indice unico parcial).
+model Activity {
+  id        String   @id @default(cuid())
+  contactId String
+  type      String // nota | tarefa | evento | sistema | compra
+  text      String
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@index([type])
+  @@map("activities")
+  @@schema("crm")
+}
+
+// ---------------------------------------------------------------------------
+// Schema public — tabela JA EXISTENTE de leads do modal da pagina de vendas.
+// Criada em 05/08/2026 pelo workflow "LabAzul - Setup Leads Captura (schema)".
+// O CRM apenas LE daqui. Nao altera, nao duplica.
+// ---------------------------------------------------------------------------
+
+model LeadCaptura {
+  id       BigInt  @id @default(autoincrement())
+  evento   String  @default("LDF15")
+  nome     String
+  email    String
+  whatsapp String? // 55 + DDD + numero (13 digitos)
+  ddd      String?
+  telefone String?
+  src      String?
+  sck      String?
+
+  utmSource   String? @map("utm_source")
+  utmMedium   String? @map("utm_medium")
+  utmCampaign String? @map("utm_campaign")
+  utmContent  String? @map("utm_content")
+  utmTerm     String? @map("utm_term")
+  pagina      String?
+
+  // Colunas de CRM que sobraram da primeira versao da tabela.
+  // Nao sao usadas: quem manda e crm.deals. Mapeadas so pra evitar drift no db push.
+  etapa       String?   @default("Lead novo")
+  responsavel String?
+  canal       String?
+  score       Int?
+  valor       Decimal?  @db.Decimal(12, 2)
+  comprou     Boolean   @default(false)
+  comprouEm   DateTime? @map("comprou_em")
+  observacoes String?
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @default(now()) @map("atualizado_em")
+
+  @@unique([evento, email], map: "leads_captura_evento_email")
+  @@index([criadoEm])
+  @@map("leads_captura")
+  @@schema("public")
+}

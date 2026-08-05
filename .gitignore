@@ -1,0 +1,19 @@
+node_modules
+.next
+out
+build
+
+# ambiente — NUNCA commitar (senha do Postgres, segredos do NextAuth, ingest token)
+.env
+.env.local
+.env.production
+.env*.local
+
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+next-env.d.ts
+*.tsbuildinfo
+.vscode/
+.idea/

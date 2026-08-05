@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-slate-100 text-marca-azul antialiased;
+}
+
+/* Gradiente azul da marca LabAzul — usado no fundo da tela de login.
+   Mesmo degradê da seção de fechamento da página de vendas. */
+.bg-marca-gradiente {
+  background: linear-gradient(135deg, #071747 0%, #12307D 55%, #1A41A8 100%);
+}

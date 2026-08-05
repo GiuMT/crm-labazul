@@ -1,0 +1,35 @@
+{
+  "name": "crm-labazul",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:push": "prisma db push",
+    "db:stages": "tsx scripts/seed-stages.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "user:create": "tsx scripts/user-create.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "5.19.1",
+    "bcryptjs": "2.4.3",
+    "next": "14.2.15",
+    "next-auth": "4.24.8",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "2.4.6",
+    "@types/node": "20.14.10",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "autoprefixer": "10.4.20",
+    "postcss": "8.4.47",
+    "prisma": "5.19.1",
+    "tailwindcss": "3.4.13",
+    "tsx": "4.19.1",
+    "typescript": "5.5.4"
+  }
+}

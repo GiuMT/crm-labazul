@@ -43,8 +43,14 @@ async function main() {
     const email = normalizeEmail(lead.email)
     if (!email || !email.includes('@')) continue
 
+    // So conta venda A PARTIR da captura (com 1 dia de tolerancia). Cliente antigo
+    // da base tem venda aprovada de meses atras e mesmo assim nao comprou este
+    // ingresso — ele pertence a fila, nao a coluna de ganho.
+    const corte = new Date(lead.criado_em).getTime() - 24 * 60 * 60 * 1000
     const vendas = await getVendasByEmail(email)
-    const aprovadas = vendas.filter((v) => VALID_SALE_STATUS.includes(v.status))
+    const aprovadas = vendas.filter(
+      (v) => VALID_SALE_STATUS.includes(v.status) && new Date(v.order_date).getTime() >= corte
+    )
     const ltv = aprovadas.reduce((s, v) => s + Number(v.price_value || 0), 0)
 
     // Ainda dentro da janela e sem compra: nao entra no CRM agora.

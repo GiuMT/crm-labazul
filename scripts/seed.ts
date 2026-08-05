@@ -19,6 +19,7 @@ import {
   origemLegivel,
   VALID_SALE_STATUS,
   JANELA_HORAS,
+  PRODUTO_INGRESSO,
 } from '../lib/queries'
 
 async function main() {
@@ -49,7 +50,10 @@ async function main() {
     const corte = new Date(lead.criado_em).getTime() - 24 * 60 * 60 * 1000
     const vendas = await getVendasByEmail(email)
     const aprovadas = vendas.filter(
-      (v) => VALID_SALE_STATUS.includes(v.status) && new Date(v.order_date).getTime() >= corte
+      (v) =>
+        VALID_SALE_STATUS.includes(v.status) &&
+        String(v.product_id) === PRODUTO_INGRESSO &&
+        new Date(v.order_date).getTime() >= corte
     )
     const ltv = aprovadas.reduce((s, v) => s + Number(v.price_value || 0), 0)
 

@@ -21,6 +21,21 @@ export const VALID_SALE_STATUS = ['APPROVED', 'COMPLETE', 'COMPLETED']
 /** Janela em horas que o lead espera antes de virar fila de contato (ver SPEC §5). */
 export const JANELA_HORAS = 2
 
+/**
+ * O produto que define a conversao: o INGRESSO da Imersao "O Novo Jogo" (T15).
+ *
+ * Nao basta "teve alguma venda". A LabAzul vende dezenas de produtos, e alguem
+ * pode preencher o formulario do evento e comprar um Guia de Atendimento no dia
+ * seguinte — isso nao e conversao do ingresso, e a pessoa continua na fila.
+ */
+export const PRODUTO_INGRESSO = '8178584' // Imersao O Novo Jogo do Mercado de Laboratorios
+
+/**
+ * Order bump do mesmo checkout (gravacao). Nao conta como conversao — so se
+ * compra junto com o ingresso —, mas entra na receita recuperada.
+ */
+export const PRODUTO_BUMP = '8178709' // ... (Gravacao)
+
 export type Venda = {
   transaction: string
   order_date: Date
@@ -67,23 +82,29 @@ export async function getVendasByEmail(email: string): Promise<Venda[]> {
  * A tolerancia de 1 dia para tras cobre diferenca de fuso e o intervalo entre
  * a pessoa comprar e o sync da Hotmart registrar.
  */
-function aprovadasDesde(vendas: Venda[], desde?: Date | null): Venda[] {
-  const aprovadas = vendas.filter((v) => VALID_SALE_STATUS.includes(v.status))
-  if (!desde) return aprovadas
-  const corte = new Date(desde).getTime() - 24 * 60 * 60 * 1000
-  return aprovadas.filter((v) => new Date(v.order_date).getTime() >= corte)
+function aprovadasDesde(vendas: Venda[], desde: Date | null | undefined, produtos: string[]): Venda[] {
+  const corte = desde ? new Date(desde).getTime() - 24 * 60 * 60 * 1000 : -Infinity
+  return vendas.filter(
+    (v) =>
+      VALID_SALE_STATUS.includes(v.status) &&
+      produtos.includes(String(v.product_id)) &&
+      new Date(v.order_date).getTime() >= corte
+  )
 }
 
-/** True se o email comprou a partir de `desde` (=> nao entra na fila). */
+/** True se o email comprou o INGRESSO do T15 a partir de `desde` (=> sai da fila). */
 export async function comprouByEmail(email: string, desde?: Date | null): Promise<boolean> {
   const vendas = await getVendasByEmail(email)
-  return aprovadasDesde(vendas, desde).length > 0
+  return aprovadasDesde(vendas, desde, [PRODUTO_INGRESSO]).length > 0
 }
 
-/** Soma das vendas aprovadas a partir de `desde` — a receita atribuivel a esta fila. */
+/** Receita recuperada: ingresso + order bump, a partir de `desde`. */
 export async function ltvByEmail(email: string, desde?: Date | null): Promise<number> {
   const vendas = await getVendasByEmail(email)
-  return aprovadasDesde(vendas, desde).reduce((s, v) => s + Number(v.price_value || 0), 0)
+  return aprovadasDesde(vendas, desde, [PRODUTO_INGRESSO, PRODUTO_BUMP]).reduce(
+    (s, v) => s + Number(v.price_value || 0),
+    0
+  )
 }
 
 export type LeadPendente = {
@@ -117,11 +138,13 @@ export async function getLeadsPendentes(horas = JANELA_HORAS): Promise<LeadPende
                 from public.vendas v
                where lower(trim(v.buyer_email)) = lower(trim(l.email))
                  and v.status = any($2)
+                 and v.product_id::text = $3
                  and v.order_date >= l.criado_em - interval '1 day'
             )
       order by l.criado_em desc`,
     String(horas),
-    VALID_SALE_STATUS
+    VALID_SALE_STATUS,
+    PRODUTO_INGRESSO
   )
 }
 

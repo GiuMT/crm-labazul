@@ -82,7 +82,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS activities_compra_uniq
 -- O resto e a equipe arrastando o card.
 -- ---------------------------------------------------------------------------
 INSERT INTO crm.stages ("id","name","position","color","isWon","isLost") VALUES
-  (gen_random_uuid()::text, 'Não comprou', 1, '#2052E9', false, false),
+  (gen_random_uuid()::text, 'Pronto para contato', 1, '#2052E9', false, false),
   (gen_random_uuid()::text, 'Em contato',  2, '#30E2FF', false, false),
   (gen_random_uuid()::text, 'Respondeu',   3, '#12307D', false, false),
   (gen_random_uuid()::text, 'Comprou',     4, '#16A34A', true,  false),

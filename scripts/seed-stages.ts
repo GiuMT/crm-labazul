@@ -10,7 +10,7 @@ import { prisma } from '../lib/prisma'
 // SPEC §5 — uma unica automacao (entrada em "Nao comprou" apos 2h sem venda);
 // o resto e a equipe arrastando o card.
 const STAGES = [
-  { position: 1, name: 'Não comprou', color: '#2052E9', isWon: false, isLost: false },
+  { position: 1, name: 'Pronto para contato', color: '#2052E9', isWon: false, isLost: false },
   { position: 2, name: 'Em contato', color: '#30E2FF', isWon: false, isLost: false },
   { position: 3, name: 'Respondeu', color: '#12307D', isWon: false, isLost: false },
   { position: 4, name: 'Comprou', color: '#16A34A', isWon: true, isLost: false },

@@ -31,9 +31,11 @@ export async function POST(req: Request) {
   if (contato) {
     if (stage.isWon) {
       // O valor vem da venda real na Hotmart, nao digitado a mao.
+      // So conta venda A PARTIR da entrada na fila: compra antiga de cliente
+      // da base nao e receita recuperada por esta acao.
       // Se o sync ainda nao trouxe a venda, o LTV fica 0 e se corrige
       // na proxima vez que alguem mover o card.
-      const ltv = await ltvByEmail(contato.email).catch(() => 0)
+      const ltv = await ltvByEmail(contato.email, contato.firstSeenAt).catch(() => 0)
       await prisma.contact.update({
         where: { id: contato.id },
         data: { isCliente: true, ltv },

@@ -54,18 +54,36 @@ export async function getVendasByEmail(email: string): Promise<Venda[]> {
   )
 }
 
-/** True se o email tem ao menos 1 venda aprovada (=> comprou, sai da fila). */
-export async function comprouByEmail(email: string): Promise<boolean> {
-  const vendas = await getVendasByEmail(email)
-  return vendas.some((v) => VALID_SALE_STATUS.includes(v.status))
+/**
+ * Vendas aprovadas a partir de uma data de referencia.
+ *
+ * O `desde` e obrigatorio na pratica e existe por um motivo que custou caro:
+ * a LabAzul tem base antiga (Metodo Azul, Socio, produtos avulsos). Um cliente
+ * de 2024 que preenche o formulario hoje TEM venda aprovada — mas nao comprou
+ * ESTE ingresso. Sem o corte por data, ele era tratado como comprador e ficava
+ * de fora da fila de recuperacao. E justamente o lead mais quente que existe:
+ * ja confia na marca e levantou a mao de novo.
+ *
+ * A tolerancia de 1 dia para tras cobre diferenca de fuso e o intervalo entre
+ * a pessoa comprar e o sync da Hotmart registrar.
+ */
+function aprovadasDesde(vendas: Venda[], desde?: Date | null): Venda[] {
+  const aprovadas = vendas.filter((v) => VALID_SALE_STATUS.includes(v.status))
+  if (!desde) return aprovadas
+  const corte = new Date(desde).getTime() - 24 * 60 * 60 * 1000
+  return aprovadas.filter((v) => new Date(v.order_date).getTime() >= corte)
 }
 
-/** Soma das vendas aprovadas do email — o LTV do contato. */
-export async function ltvByEmail(email: string): Promise<number> {
+/** True se o email comprou a partir de `desde` (=> nao entra na fila). */
+export async function comprouByEmail(email: string, desde?: Date | null): Promise<boolean> {
   const vendas = await getVendasByEmail(email)
-  return vendas
-    .filter((v) => VALID_SALE_STATUS.includes(v.status))
-    .reduce((soma, v) => soma + Number(v.price_value || 0), 0)
+  return aprovadasDesde(vendas, desde).length > 0
+}
+
+/** Soma das vendas aprovadas a partir de `desde` — a receita atribuivel a esta fila. */
+export async function ltvByEmail(email: string, desde?: Date | null): Promise<number> {
+  const vendas = await getVendasByEmail(email)
+  return aprovadasDesde(vendas, desde).reduce((s, v) => s + Number(v.price_value || 0), 0)
 }
 
 export type LeadPendente = {

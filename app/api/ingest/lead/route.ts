@@ -41,8 +41,11 @@ export async function POST(req: Request) {
   // Se comprou, o lead NAO entra no CRM. Ele nunca esteve no funil de recuperacao:
   // comprou sozinho. Cria-lo aqui inflaria o denominador da taxa de recuperacao
   // com gente que a equipe nunca abordou — e a metrica pareceria pior do que e.
-  if (await comprouByEmail(email)) {
-    return NextResponse.json({ ok: true, ignorado: 'comprou antes de entrar na fila' })
+  // Compara so com vendas A PARTIR da captura. Cliente antigo da base tem venda
+  // aprovada de meses atras e mesmo assim nao comprou ESTE ingresso — ele precisa
+  // entrar na fila.
+  if (await comprouByEmail(email, criadoEm)) {
+    return NextResponse.json({ ok: true, ignorado: 'comprou depois de preencher o formulário' })
   }
 
   // Daqui pra baixo, o lead nao comprou: entra na fila de contato.

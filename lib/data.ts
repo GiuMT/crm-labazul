@@ -175,6 +175,17 @@ export type Analytics = {
   taxaRecuperacao: number
   receita: number
   porFonte: { source: string; total: number; compraram: number }[]
+  porEvento: { evento: string; total: number; compraram: number; taxa: number; receita: number }[]
+}
+
+/**
+ * Rótulo legível de cada página + a abordagem de WhatsApp que ela recebe.
+ * É um teste A/B: cada página manda os leads para uma abordagem diferente.
+ * Ao trocar a abordagem, atualizar aqui — é só texto de tela.
+ */
+export const ABORDAGEM: Record<string, string> = {
+  LDF15: 'Página v1 · bônus extra',
+  'LDF15-V3': 'Página v3 · desconto do lote anterior',
 }
 
 /**
@@ -200,6 +211,25 @@ export async function getAnalytics(range?: DateFilter): Promise<Analytics> {
 
   const compradosPorFonte = new Map(fontesCliente.map((f) => [f.source, f._count._all]))
 
+  // Comparativo por página de origem — o teste A/B das abordagens de WhatsApp.
+  // A base e o total de quem ENTROU NA FILA (ou seja, nao comprou sozinho);
+  // e sobre esses que a abordagem age, entao e a base honesta da comparacao.
+  const [eventos, eventosCliente, receitaEvento] = await Promise.all([
+    prisma.contact.groupBy({ by: ['evento'], where, _count: { _all: true } }),
+    prisma.contact.groupBy({
+      by: ['evento'],
+      where: { ...where, isCliente: true },
+      _count: { _all: true },
+    }),
+    prisma.contact.groupBy({
+      by: ['evento'],
+      where: { ...where, isCliente: true },
+      _sum: { ltv: true },
+    }),
+  ])
+  const compradosPorEvento = new Map(eventosCliente.map((e) => [e.evento, e._count._all]))
+  const receitaPorEvento = new Map(receitaEvento.map((e) => [e.evento, Number(e._sum.ltv ?? 0)]))
+
   return {
     totalContatos: total,
     totalCompraram: compraram,
@@ -212,6 +242,19 @@ export async function getAnalytics(range?: DateFilter): Promise<Analytics> {
         total: f._count._all,
         compraram: compradosPorFonte.get(f.source) ?? 0,
       }))
+      .sort((a, b) => b.total - a.total),
+    porEvento: eventos
+      .map((e) => {
+        const total = e._count._all
+        const compraram = compradosPorEvento.get(e.evento) ?? 0
+        return {
+          evento: e.evento || '(sem página)',
+          total,
+          compraram,
+          taxa: total > 0 ? compraram / total : 0,
+          receita: receitaPorEvento.get(e.evento) ?? 0,
+        }
+      })
       .sort((a, b) => b.total - a.total),
   }
 }

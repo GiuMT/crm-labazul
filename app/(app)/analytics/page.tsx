@@ -1,4 +1,4 @@
-import { getAnalytics, getPipeline } from '@/lib/data'
+import { getAnalytics, getPipeline, ABORDAGEM } from '@/lib/data'
 import { parseRange } from '@/lib/daterange'
 import { money } from '@/lib/format'
 import DateFilter from '@/components/DateFilter'
@@ -91,6 +91,54 @@ export default async function AnalyticsPage({
               color="text-marca-primario"
             />
           </div>
+        </div>
+
+        <div>
+          <h2 className="mb-2 text-sm font-bold uppercase text-slate-500">
+            Comparativo de abordagem
+          </h2>
+          <p className="mb-3 text-xs text-slate-400">
+            Cada página manda os leads para uma abordagem diferente no WhatsApp. A base é{' '}
+            <b>quem entrou na fila</b> — quem comprou sozinho nunca chega aqui, então não infla a
+            conta de nenhum dos dois lados.
+          </p>
+          {a.porEvento.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-400">
+              Sem dados ainda.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {a.porEvento.map((e) => (
+                <div key={e.evento} className="rounded-xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-bold text-marca-azul">
+                    {ABORDAGEM[e.evento] || e.evento}
+                  </p>
+                  <div className="mt-4 flex items-end justify-between">
+                    <div>
+                      <p className="text-3xl font-bold text-marca-primario">{pct(e.taxa)}</p>
+                      <p className="text-xs text-slate-400">recuperados / na fila</p>
+                    </div>
+                    <div className="text-right text-sm text-slate-500">
+                      <p>
+                        <b className="text-marca-azul">{e.total}</b> na fila
+                      </p>
+                      <p>
+                        <b className="text-ganho">{e.compraram}</b> recuperados
+                      </p>
+                      <p className="text-xs">{money(e.receita)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {a.porEvento.length >= 2 && (
+            <p className="mt-3 text-xs text-slate-400">
+              ⚠️ As páginas também são diferentes entre si. Se uma converter melhor, pode ser a
+              abordagem <i>ou</i> o perfil de quem cada página atrai. Para isolar a abordagem, as
+              duas precisam receber tráfego parecido.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

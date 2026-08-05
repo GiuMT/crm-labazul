@@ -38,6 +38,25 @@ export function relativeDay(d: Date | string | null | undefined): string {
 }
 
 /**
+ * Rotulo curto da pagina de origem, para o card do pipeline.
+ *
+ * O `evento` guarda o lancamento inteiro (LDF15, LDF15-V3), mas na tela isso
+ * e ruido: e sempre o mesmo lancamento. O que a equipe precisa ver de relance
+ * e de QUAL PAGINA o lead veio, porque cada uma recebe uma abordagem diferente.
+ *
+ *   LDF15     -> v1   (pagina original, sem sufixo)
+ *   LDF15-V3  -> v3
+ *
+ * Le o sufixo em vez de usar uma lista fixa: uma v4 amanha funciona sozinha.
+ */
+export function paginaDoEvento(evento: string | null | undefined): string | null {
+  if (!evento) return null
+  const m = /-v(\d+)$/i.exec(evento.trim())
+  if (m) return `v${m[1]}`
+  return 'v1'
+}
+
+/**
  * Normaliza telefone BR pra link do WhatsApp (wa.me/55...).
  * Aceita so digitos; garante DDI 55; insere o 9 em celular antigo (10 digitos com DDD).
  * Retorna null se invalido (nao gera link quebrado).

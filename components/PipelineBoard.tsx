@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { dateShort, money } from '@/lib/format'
+import { dateShort, money, paginaDoEvento } from '@/lib/format'
 import type { Column, Card } from '@/lib/data'
 import DateFilter from './DateFilter'
 
@@ -155,15 +155,15 @@ export default function PipelineBoard({
                       <span className="text-sm font-semibold text-marca-azul">{card.name}</span>
                       <TempoNaFila dias={card.diasNaFila} />
                     </div>
-                    <div className="flex flex-col items-start gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
+                      {paginaDoEvento(card.evento) && (
+                        <span className="inline-block rounded bg-marca-azul px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-marca-ciano">
+                          {paginaDoEvento(card.evento)}
+                        </span>
+                      )}
                       <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">
                         {card.source}
                       </span>
-                      {card.evento && (
-                        <span className="inline-block rounded bg-marca-azul px-1.5 py-0.5 text-[11px] font-medium text-white">
-                          {card.evento}
-                        </span>
-                      )}
                     </div>
                     <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
                       <span>Entrada: {dateShort(card.firstSeenAt)}</span>

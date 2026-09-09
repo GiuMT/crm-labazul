@@ -34,11 +34,15 @@ export async function POST(req: Request) {
   const src = (b.src as string) || null
   const sck = (b.sck as string) || null
   const campaign = (b.utm_campaign as string) || (b.campaign as string) || null
+  const utmSource = (b.utm_source as string) || null
+  const utmMedium = (b.utm_medium as string) || null
+  const utmContent = (b.utm_content as string) || null
+  const utmTerm = (b.utm_term as string) || null
   const evento = (b.evento as string) || 'LDF15'
   // Em qual funil o card nasce. 'abandono' continua sendo o padrao para nao
   // mudar o comportamento de quem ja chama este endpoint sem o campo.
   const funil = (b.funil as string) || 'abandono'
-  const source = origemLegivel(src)
+  const source = origemLegivel(src, utmSource, utmMedium)
   const criadoEm = b.criado_em ? new Date(b.criado_em as string) : new Date()
 
   // Confere a venda no momento da ingestao. O n8n ja filtra, mas o sync da Hotmart
@@ -74,6 +78,10 @@ export async function POST(req: Request) {
           sck: existing.sck || sck,
           source: existing.source || source,
           campaign: existing.campaign || campaign,
+          utmSource: existing.utmSource || utmSource,
+          utmMedium: existing.utmMedium || utmMedium,
+          utmContent: existing.utmContent || utmContent,
+          utmTerm: existing.utmTerm || utmTerm,
           evento: existing.evento || evento,
         },
       })
@@ -86,6 +94,10 @@ export async function POST(req: Request) {
           sck,
           source,
           campaign,
+          utmSource,
+          utmMedium,
+          utmContent,
+          utmTerm,
           evento,
           firstSeenAt: criadoEm,
         },

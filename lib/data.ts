@@ -18,6 +18,7 @@ export type Card = {
   phone: string | null
   whatsappLink: string | null
   source: string
+  criativo: string | null
   evento: string | null
   firstSeenAt: Date
   movedAt: Date
@@ -101,6 +102,7 @@ export async function getPipeline(range?: DateFilter, funil: string = FUNIL_PADR
           phone: c.phone,
           whatsappLink: linkWhatsApp(c.phone),
           source: c.source || 'Direto',
+          criativo: c.utmContent,
           evento: c.evento,
           firstSeenAt: c.firstSeenAt,
           movedAt: d.movedAt,

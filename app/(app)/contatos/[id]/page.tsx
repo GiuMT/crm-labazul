@@ -73,11 +73,27 @@ export default async function FichaPage({ params }: { params: { id: string } }) 
                 <dd className="text-marca-azul">{contact.evento || '—'}</dd>
               </div>
               <div>
-                <dt className="text-slate-400">Rastreio (src)</dt>
+                <dt className="text-slate-400">Fonte (utm_source)</dt>
+                <dd className="text-marca-azul">{contact.utmSource || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">Mídia (utm_medium)</dt>
+                <dd className="text-marca-azul">{contact.utmMedium || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">Campanha (utm_campaign)</dt>
+                <dd className="break-all text-marca-azul">{contact.campaign || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">Conjunto (utm_term)</dt>
+                <dd className="break-all text-marca-azul">{contact.utmTerm || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">Criativo (utm_content)</dt>
                 <dd>
-                  {contact.src ? (
-                    <span className="inline-block rounded bg-marca-primario-100 px-2 py-0.5 text-xs font-semibold text-marca-primario-600">
-                      {contact.src}
+                  {contact.utmContent ? (
+                    <span className="inline-block break-all rounded bg-marca-primario-100 px-2 py-0.5 text-xs font-semibold text-marca-primario-600">
+                      {contact.utmContent}
                     </span>
                   ) : (
                     <span className="text-slate-500">—</span>
@@ -85,8 +101,12 @@ export default async function FichaPage({ params }: { params: { id: string } }) 
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-400">Campanha (sck)</dt>
-                <dd className="text-marca-azul">{contact.sck || '—'}</dd>
+                <dt className="text-slate-400">Rastreio (src / sck)</dt>
+                <dd className="break-all text-marca-azul">
+                  {contact.src || contact.sck
+                    ? [contact.src, contact.sck].filter(Boolean).join(' · ')
+                    : '—'}
+                </dd>
               </div>
               <div>
                 <dt className="text-slate-400">Entrada</dt>

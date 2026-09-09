@@ -202,15 +202,24 @@ export async function getTodosLeads(): Promise<LeadPendente[]> {
  * cair num 'unknown' silencioso — por isso o fallback e "Direto",
  * que e uma afirmacao, nao um buraco.
  */
-export function origemLegivel(src: string | null | undefined): string {
-  const s = (src || '').toLowerCase()
+export function origemLegivel(
+  src: string | null | undefined,
+  utmSource?: string | null,
+  utmMedium?: string | null
+): string {
+  // O `src` so existe quando o anuncio usa o parametro de rastreio da Hotmart.
+  // Campanha de trafego normal chega com UTM, e sem este fallback todo lead de
+  // anuncio aparecia como "Direto" — foi exatamente o que os testes de 09/09
+  // mostraram: utm_source=metaads na tabela de leads e "Direto" no card.
+  const s = (src || utmSource || utmMedium || '').toLowerCase()
   if (!s) return 'Direto'
   if (s.includes('meta') || s.includes('face') || s.includes('ig') || s.includes('insta')) return 'Meta Ads'
   if (s.includes('google') || s.includes('gads') || s.includes('yt')) return 'Google'
   if (s.includes('wpp') || s.includes('whats')) return 'WhatsApp'
   if (s.includes('email') || s.includes('mail')) return 'E-mail'
   if (s.includes('organ') || s.includes('bio')) return 'Orgânico'
-  return src as string
+  if (s === 'cpc' || s === 'paid' || s === 'ppc') return 'Mídia paga'
+  return (src || utmSource || utmMedium) as string
 }
 
 /** Monta o deep-link de WhatsApp a partir do numero ja normalizado pelo modal. */

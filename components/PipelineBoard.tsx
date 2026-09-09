@@ -166,6 +166,14 @@ export default function PipelineBoard({
                       <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">
                         {card.source}
                       </span>
+                      {card.criativo && (
+                        <span
+                          title={card.criativo}
+                          className="inline-block max-w-[140px] truncate rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500"
+                        >
+                          {card.criativo}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
                       <span>Entrada: {dateShort(card.firstSeenAt)}</span>

@@ -43,6 +43,12 @@ model Contact {
   src         String? // rastreio cru vindo da URL da pagina
   sck         String? // segundo parametro de rastreio (lancamento)
   campaign    String? // utm_campaign
+  // UTMs completas do anuncio. Sem elas nao da para saber de qual criativo e de
+  // qual conjunto o lead veio, que e a pergunta que a midia faz todo dia.
+  utmSource   String? // utm_source  — fonte (facebook, google, ig)
+  utmMedium   String? // utm_medium  — midia (cpc, social, email)
+  utmContent  String? // utm_content — criativo/anuncio
+  utmTerm     String? // utm_term    — conjunto de anuncios ou termo
   evento      String? // de qual lancamento veio o lead (ex.: LDF15)
   isCliente   Boolean  @default(false)
   ltv         Decimal  @default(0) @db.Decimal(12, 2)

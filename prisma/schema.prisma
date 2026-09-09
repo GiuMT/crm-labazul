@@ -64,6 +64,9 @@ model Contact {
 model Stage {
   id       String  @id @default(cuid())
   name     String
+  // Qual funil esta coluna pertence. 'abandono' e o do T15 (o original);
+  // 'lista-espera' e o do Metodo Azul perpetuo. A tela filtra por aqui.
+  funil    String  @default("abandono")
   position Int     @unique
   color    String?
   isWon    Boolean @default(false)

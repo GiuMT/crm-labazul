@@ -58,9 +58,11 @@ function BotaoWhatsApp({ card }: { card: Card }) {
 export default function PipelineBoard({
   columns,
   periodLabel,
+  titulo = 'Fila de recuperação',
 }: {
   columns: Column[]
   periodLabel: string
+  titulo?: string
 }) {
   const [cols, setCols] = useState(columns)
   const [dragging, setDragging] = useState<{ dealId: string; from: string } | null>(null)
@@ -100,7 +102,7 @@ export default function PipelineBoard({
       <div className="border-b border-slate-200 bg-white px-6 py-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-marca-azul">Fila de recuperação</h1>
+            <h1 className="text-xl font-bold text-marca-azul">{titulo}</h1>
             <p className="text-sm text-slate-500">
               Quem preencheu o formulário e não comprou · {periodLabel}
             </p>

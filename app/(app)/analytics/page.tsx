@@ -32,7 +32,10 @@ export default async function AnalyticsPage({
 }) {
   const range = parseRange(searchParams)
   const filter = { start: range.start, end: range.end }
-  const [a, columns] = await Promise.all([getAnalytics(filter), getPipeline(filter)])
+  // Esta tela ainda e do funil de abandono do T15: as taxas por pagina (v1/v3)
+  // e a receita recuperada so fazem sentido ali. O funil da lista de espera
+  // aparece no Pipeline; quando ele tiver volume, ganha a sua propria Analytics.
+  const [a, columns] = await Promise.all([getAnalytics(filter), getPipeline(filter, 'abandono')])
   const pct = (n: number) => `${(n * 100).toFixed(1)}%`
 
   // Leitura stage-driven: nunca comparar pelo nome do estágio (o guia é explícito).

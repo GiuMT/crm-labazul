@@ -36,6 +36,38 @@ export const PRODUTO_INGRESSO = '8178584' // Imersao O Novo Jogo do Mercado de L
  */
 export const PRODUTO_BUMP = '8178709' // ... (Gravacao)
 
+/**
+ * O produto que define a conversao do funil de LISTA DE ESPERA: o proprio
+ * Metodo Azul. Aqui nao ha ingresso no meio — quem entra na lista esta
+ * esperando vaga no programa, e a conversao e a compra dele.
+ */
+export const PRODUTO_METODO_AZUL = '7237713' // Metodo Azul
+
+/** Produto que conta como conversao em cada funil. */
+export const PRODUTO_CONVERSAO: Record<string, string> = {
+  abandono: PRODUTO_INGRESSO,
+  'lista-espera': PRODUTO_METODO_AZUL,
+}
+
+/**
+ * True se o email tem acesso VIGENTE ao Metodo Azul (compra aprovada nos
+ * ultimos 12 meses). Quem esta nessa condicao nao entra na fila da lista de
+ * espera: oferecer vaga a quem ja paga queima autoridade na hora.
+ *
+ * Quem comprou ha mais de um ano NAO e barrado de proposito — o acesso e
+ * anual, entao ele e reentrada, e reentrada e lead quente.
+ */
+export async function temMetodoAzulAtivo(email: string): Promise<boolean> {
+  const vendas = await getVendasByEmail(email)
+  const corte = Date.now() - 365 * 24 * 60 * 60 * 1000
+  return vendas.some(
+    (v) =>
+      VALID_SALE_STATUS.includes(v.status) &&
+      String(v.product_id) === PRODUTO_METODO_AZUL &&
+      new Date(v.order_date).getTime() >= corte
+  )
+}
+
 export type Venda = {
   transaction: string
   order_date: Date
@@ -98,13 +130,20 @@ export async function comprouByEmail(email: string, desde?: Date | null): Promis
   return aprovadasDesde(vendas, desde, [PRODUTO_INGRESSO]).length > 0
 }
 
-/** Receita recuperada: ingresso + order bump, a partir de `desde`. */
-export async function ltvByEmail(email: string, desde?: Date | null): Promise<number> {
+/**
+ * Receita recuperada, a partir de `desde`.
+ *
+ * Os produtos dependem do funil: no de abandono conta o ingresso do T15 mais o
+ * order bump da gravacao; na lista de espera conta o Metodo Azul. Somar tudo em
+ * um so lugar misturaria receita de R$ 59 com receita de R$ 3.600.
+ */
+export async function ltvByEmail(
+  email: string,
+  desde?: Date | null,
+  produtos: string[] = [PRODUTO_INGRESSO, PRODUTO_BUMP]
+): Promise<number> {
   const vendas = await getVendasByEmail(email)
-  return aprovadasDesde(vendas, desde, [PRODUTO_INGRESSO, PRODUTO_BUMP]).reduce(
-    (s, v) => s + Number(v.price_value || 0),
-    0
-  )
+  return aprovadasDesde(vendas, desde, produtos).reduce((s, v) => s + Number(v.price_value || 0), 0)
 }
 
 export type LeadPendente = {

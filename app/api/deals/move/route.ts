@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { ltvByEmail } from '@/lib/queries'
+import { ltvByEmail, PRODUTO_INGRESSO, PRODUTO_BUMP, PRODUTO_METODO_AZUL } from '@/lib/queries'
 
 // Move um deal pra outro estagio. Ajusta o status (won/lost/open) pela flag do estagio destino.
 export async function POST(req: Request) {
@@ -35,7 +35,11 @@ export async function POST(req: Request) {
       // da base nao e receita recuperada por esta acao.
       // Se o sync ainda nao trouxe a venda, o LTV fica 0 e se corrige
       // na proxima vez que alguem mover o card.
-      const ltv = await ltvByEmail(contato.email, contato.firstSeenAt).catch(() => 0)
+      // Cada funil tem o seu produto de conversao: ingresso (+bump) no de
+      // abandono, Metodo Azul na lista de espera.
+      const produtos =
+        stage.funil === 'lista-espera' ? [PRODUTO_METODO_AZUL] : [PRODUTO_INGRESSO, PRODUTO_BUMP]
+      const ltv = await ltvByEmail(contato.email, contato.firstSeenAt, produtos).catch(() => 0)
       await prisma.contact.update({
         where: { id: contato.id },
         data: { isCliente: true, ltv },

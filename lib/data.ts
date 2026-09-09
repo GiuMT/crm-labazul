@@ -4,9 +4,10 @@ import { linkWhatsApp } from './queries'
 // -----------------------------------------------------------------------------
 // Camada de leitura do CRM para as telas. Server-side (usa o prisma singleton).
 //
-// Deliberadamente mais simples que a versao do Abel: a LabAzul tem UM funil,
-// UM produto e nenhuma integracao de WhatsApp por API. Tudo que era multi-funil,
-// lead score e saude de conexao foi removido — nao ha o que ligar.
+// A LabAzul comecou com UM funil (abandono de carrinho do T15). Em 09/09/2026
+// entrou o segundo: a lista de espera do Metodo Azul perpetuo. Os dois vivem
+// no mesmo quadro, separados pela coluna `funil` de crm.stages — nunca pelo
+// nome do estagio, que continua editavel por UPDATE sem redeploy.
 // -----------------------------------------------------------------------------
 
 export type Card = {
@@ -58,12 +59,30 @@ function diasDesde(d: Date): number {
   return Math.floor((Date.now() - new Date(d).getTime()) / 86400000)
 }
 
+/** Os funis existentes, na ordem em que aparecem no seletor da tela. */
+export const FUNIS = [
+  { key: 'lista-espera', label: 'Lista de espera' },
+  { key: 'abandono', label: 'Abandono T15' },
+] as const
+
+export const FUNIL_PADRAO = 'lista-espera'
+
+/** Titulo da tela por funil. A fila da lista de espera nao e "recuperacao". */
+export const TITULO_FUNIL: Record<string, string> = {
+  'lista-espera': 'Lista de espera do Método Azul',
+  abandono: 'Fila de recuperação',
+}
+
 /** Colunas do pipeline (na ordem), com contador + R$ total e cards. */
-export async function getPipeline(range?: DateFilter): Promise<Column[]> {
+export async function getPipeline(range?: DateFilter, funil: string = FUNIL_PADRAO): Promise<Column[]> {
+  const stagesDoFunil = await prisma.stage.findMany({
+    where: { funil },
+    orderBy: { position: 'asc' },
+  })
   const [stages, deals] = await Promise.all([
-    prisma.stage.findMany({ orderBy: { position: 'asc' } }),
+    Promise.resolve(stagesDoFunil),
     prisma.deal.findMany({
-      where: dealDateWhere(range),
+      where: { ...dealDateWhere(range), stageId: { in: stagesDoFunil.map((s) => s.id) } },
       include: { contact: true },
       orderBy: { movedAt: 'desc' },
     }),

@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { normalizeEmail, origemLegivel, comprouByEmail } from '@/lib/queries'
+import { normalizeEmail, origemLegivel, comprouByEmail, temMetodoAzulAtivo } from '@/lib/queries'
 
 /**
  * Ingestao de LEAD na fila de recuperacao. Protegido por x-ingest-token.
  *
- * Quem chama: o workflow n8n "LabAzul - Promover Lead para o CRM", que roda de
- * 30 em 30 min e so envia quem preencheu ha mais de 2h SEM venda aprovada.
- * Ou seja: a decisao de "esta na hora de contatar" e do n8n; aqui a gente
- * apenas materializa o contato e o card.
+ * Quem chama:
+ *  - funil 'abandono': o workflow "LabAzul - Promover Lead para o CRM", de 30 em
+ *    30 min, so com quem preencheu ha mais de 2h SEM venda aprovada.
+ *  - funil 'lista-espera': o proprio webhook de captura, na hora em que a pessoa
+ *    se inscreve. Aqui nao ha compra para esperar: ela entrou na lista porque a
+ *    turma esta fechada, entao o card nasce junto e o contador de dias na fila
+ *    comeca a correr.
  *
  * Diferente do CRM do Abel, este endpoint NAO grava o lead cru numa tabela
  * propria — a `public.leads_captura` ja e gravada pelo webhook do modal, direto.
@@ -32,6 +35,9 @@ export async function POST(req: Request) {
   const sck = (b.sck as string) || null
   const campaign = (b.utm_campaign as string) || (b.campaign as string) || null
   const evento = (b.evento as string) || 'LDF15'
+  // Em qual funil o card nasce. 'abandono' continua sendo o padrao para nao
+  // mudar o comportamento de quem ja chama este endpoint sem o campo.
+  const funil = (b.funil as string) || 'abandono'
   const source = origemLegivel(src)
   const criadoEm = b.criado_em ? new Date(b.criado_em as string) : new Date()
 
@@ -44,7 +50,14 @@ export async function POST(req: Request) {
   // Compara so com vendas A PARTIR da captura. Cliente antigo da base tem venda
   // aprovada de meses atras e mesmo assim nao comprou ESTE ingresso — ele precisa
   // entrar na fila.
-  if (await comprouByEmail(email, criadoEm)) {
+  if (funil === 'lista-espera') {
+    // Na lista de espera a regra e outra: quem ja tem acesso vigente ao Metodo
+    // Azul nao entra na fila. Oferecer vaga a quem ja paga queima autoridade.
+    // Quem comprou ha mais de um ano entra: o acesso e anual, entao e reentrada.
+    if (await temMetodoAzulAtivo(email)) {
+      return NextResponse.json({ ok: true, ignorado: 'já tem Método Azul ativo' })
+    }
+  } else if (await comprouByEmail(email, criadoEm)) {
     return NextResponse.json({ ok: true, ignorado: 'comprou depois de preencher o formulário' })
   }
 
@@ -78,14 +91,21 @@ export async function POST(req: Request) {
         },
       })
 
-  // Card na fila de contato. Stage-driven: posicao 1 e a primeira coluna,
-  // qualquer que seja o nome que ela tenha hoje.
-  const jaTemDeal = await prisma.deal.findFirst({ where: { contactId: contact.id } })
-  if (!jaTemDeal) {
-    const stage = await prisma.stage.findFirst({ where: { position: 1 } })
-    if (stage) {
+  // Card na fila de contato. Stage-driven: a primeira coluna DO FUNIL, qualquer
+  // que seja o nome dela hoje. O contato e unico por email e pode existir nos
+  // dois funis, entao a checagem de card duplicado tambem e por funil — senao
+  // quem passou pelo T15 nunca ganharia card na lista de espera.
+  const estagios = await prisma.stage.findMany({
+    where: { funil },
+    orderBy: { position: 'asc' },
+  })
+  if (estagios.length) {
+    const jaTemDeal = await prisma.deal.findFirst({
+      where: { contactId: contact.id, stageId: { in: estagios.map((e) => e.id) } },
+    })
+    if (!jaTemDeal) {
       await prisma.deal.create({
-        data: { contactId: contact.id, stageId: stage.id, status: 'open' },
+        data: { contactId: contact.id, stageId: estagios[0].id, status: 'open' },
       })
     }
   }
@@ -95,7 +115,10 @@ export async function POST(req: Request) {
       data: {
         contactId: contact.id,
         type: 'sistema',
-        text: `Preencheu o formulário da página de vendas (${evento})`,
+        text:
+          funil === 'lista-espera'
+            ? `Entrou na lista de espera (${evento})`
+            : `Preencheu o formulário da página de vendas (${evento})`,
         createdAt: criadoEm,
       },
     })

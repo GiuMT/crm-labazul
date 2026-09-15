@@ -149,7 +149,12 @@ export default async function FichaPage({ params }: { params: { id: string } }) 
             contactId={contact.id}
             dealId={deal?.id || null}
             currentStageId={deal?.stageId || null}
-            stages={stages.map((s) => ({ id: s.id, name: s.name }))}
+            // So as etapas do funil deste card: os dois funis tem colunas com o mesmo
+            // nome (ex.: "Pronto para contato") e mover para a do outro funil tiraria
+            // o card do quadro certo.
+            stages={stages
+              .filter((s) => !deal || s.funil === deal.stage.funil)
+              .map((s) => ({ id: s.id, name: s.name }))}
           />
         </div>
       </div>

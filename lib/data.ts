@@ -191,12 +191,25 @@ export async function getStages() {
 
 export type Analytics = {
   totalContatos: number
-  totalCompraram: number
   naFila: number
-  taxaRecuperacao: number
+  abordados: number
+  compraram: number
+  perdidos: number
+  taxaConversao: number
   receita: number
   porFonte: { source: string; total: number; compraram: number }[]
+  porPublico: { publico: string; total: number; compraram: number }[]
   porEvento: { evento: string; total: number; compraram: number; taxa: number; receita: number }[]
+}
+
+/**
+ * Quantas colunas do começo de cada funil são "fila": card que ainda não foi
+ * abordado. No abandono é só "Pronto para contato"; na lista de espera são
+ * "Novo lead" e "Pronto para contato". Contado por ordem, nunca pelo nome.
+ */
+export const COLUNAS_FILA: Record<string, number> = {
+  abandono: 1,
+  'lista-espera': 2,
 }
 
 /**
@@ -210,72 +223,89 @@ export const ABORDAGEM: Record<string, string> = {
 }
 
 /**
- * Numeros do funil de recuperacao.
- *
- * `taxaRecuperacao` conta apenas quem entrou na fila e depois comprou — ou seja,
- * o resultado do trabalho da equipe. Quem comprou sozinho nos primeiros minutos
- * nunca entra no CRM, entao nao infla a conta.
+ * Publico da campanha, lido da utm_campaign. A marcacao chega de dois jeitos:
+ * "[F][INJML0826][VENDAS][PQ][V3]" no T15 e "FINJML0826LEADSPQ-Lista-de-Espera"
+ * na lista de espera (a UTM perde os colchetes). Em ambos o PQ/PF termina num
+ * separador ou no fim do texto. Sem marcacao (stories, bio, WhatsApp) fica
+ * como "Sem PQ/PF", que e uma afirmacao, nao um buraco.
  */
-export async function getAnalytics(range?: DateFilter): Promise<Analytics> {
-  const where = contactFilter(range)
-  const [total, compraram, receitaAgg, fontes, fontesCliente] = await Promise.all([
-    prisma.contact.count({ where }),
-    prisma.contact.count({ where: { ...where, isCliente: true } }),
-    prisma.contact.aggregate({ _sum: { ltv: true }, where: { ...where, isCliente: true } }),
-    prisma.contact.groupBy({ by: ['source'], where, _count: { _all: true } }),
-    prisma.contact.groupBy({
-      by: ['source'],
-      where: { ...where, isCliente: true },
-      _count: { _all: true },
-    }),
-  ])
+export function publicoDe(campaign: string | null | undefined): string {
+  const m = String(campaign || '').toUpperCase().match(/P([QF])(?=[\]\-_\s]|$)/)
+  if (!m) return 'Sem PQ/PF'
+  return m[1] === 'Q' ? 'PQ (público quente)' : 'PF (público frio)'
+}
 
-  const compradosPorFonte = new Map(fontesCliente.map((f) => [f.source, f._count._all]))
+/**
+ * Numeros de UM funil, contados a partir dos cards (deals) daquele funil.
+ *
+ * Tem que ser por card, e nao por contato: o contato e unico por e-mail e pode
+ * estar nos dois funis, e o `isCliente`/`ltv` dele e um so. Contar por contato
+ * misturava a lista de espera nos numeros do abandono (e vice-versa).
+ *
+ * Base das taxas = quem a equipe ja abordou. Quem esta parado na fila ainda
+ * nao foi trabalhado; inclui-lo faria a taxa parecer pior do que e.
+ */
+export async function getAnalytics(range?: DateFilter, funil: string = FUNIL_PADRAO): Promise<Analytics> {
+  const stages = await prisma.stage.findMany({ where: { funil }, orderBy: { position: 'asc' } })
+  const deals = await prisma.deal.findMany({
+    where: { ...dealDateWhere(range), stageId: { in: stages.map((s) => s.id) } },
+    include: { contact: true },
+  })
 
-  // Comparativo por página de origem — o teste A/B das abordagens de WhatsApp.
-  // A base e o total de quem ENTROU NA FILA (ou seja, nao comprou sozinho);
-  // e sobre esses que a abordagem age, entao e a base honesta da comparacao.
-  const [eventos, eventosCliente, receitaEvento] = await Promise.all([
-    prisma.contact.groupBy({ by: ['evento'], where, _count: { _all: true } }),
-    prisma.contact.groupBy({
-      by: ['evento'],
-      where: { ...where, isCliente: true },
-      _count: { _all: true },
-    }),
-    prisma.contact.groupBy({
-      by: ['evento'],
-      where: { ...where, isCliente: true },
-      _sum: { ltv: true },
-    }),
-  ])
-  const compradosPorEvento = new Map(eventosCliente.map((e) => [e.evento, e._count._all]))
-  const receitaPorEvento = new Map(receitaEvento.map((e) => [e.evento, Number(e._sum.ltv ?? 0)]))
+  const idsFila = new Set(
+    stages
+      .filter((s) => !s.isWon && !s.isLost)
+      .slice(0, COLUNAS_FILA[funil] ?? 1)
+      .map((s) => s.id)
+  )
+  const idsGanho = new Set(stages.filter((s) => s.isWon).map((s) => s.id))
+  const idsPerda = new Set(stages.filter((s) => s.isLost).map((s) => s.id))
+
+  const ganhos = deals.filter((d) => idsGanho.has(d.stageId))
+  const naFila = deals.filter((d) => idsFila.has(d.stageId)).length
+  const compraram = ganhos.length
+  const perdidos = deals.filter((d) => idsPerda.has(d.stageId)).length
+  const abordados = deals.length - naFila
+
+  const agrupa = (chave: (d: (typeof deals)[number]) => string) => {
+    const m = new Map<string, { total: number; compraram: number; receita: number }>()
+    for (const d of deals) {
+      const k = chave(d)
+      const g = m.get(k) ?? { total: 0, compraram: 0, receita: 0 }
+      g.total += 1
+      if (idsGanho.has(d.stageId)) {
+        g.compraram += 1
+        g.receita += Number(d.value)
+      }
+      m.set(k, g)
+    }
+    return [...m.entries()].sort((a, b) => b[1].total - a[1].total)
+  }
 
   return {
-    totalContatos: total,
-    totalCompraram: compraram,
-    naFila: total - compraram,
-    taxaRecuperacao: total > 0 ? compraram / total : 0,
-    receita: Number(receitaAgg._sum.ltv ?? 0),
-    porFonte: fontes
-      .map((f) => ({
-        source: f.source || 'Direto',
-        total: f._count._all,
-        compraram: compradosPorFonte.get(f.source) ?? 0,
-      }))
-      .sort((a, b) => b.total - a.total),
-    porEvento: eventos
-      .map((e) => {
-        const total = e._count._all
-        const compraram = compradosPorEvento.get(e.evento) ?? 0
-        return {
-          evento: e.evento || '(sem página)',
-          total,
-          compraram,
-          taxa: total > 0 ? compraram / total : 0,
-          receita: receitaPorEvento.get(e.evento) ?? 0,
-        }
-      })
-      .sort((a, b) => b.total - a.total),
+    totalContatos: deals.length,
+    naFila,
+    abordados,
+    compraram,
+    perdidos,
+    taxaConversao: abordados > 0 ? compraram / abordados : 0,
+    receita: ganhos.reduce((s, d) => s + Number(d.value), 0),
+    porFonte: agrupa((d) => d.contact.source || 'Direto').map(([source, g]) => ({
+      source,
+      total: g.total,
+      compraram: g.compraram,
+    })),
+    porPublico: agrupa((d) => publicoDe(d.contact.campaign)).map(([publico, g]) => ({
+      publico,
+      total: g.total,
+      compraram: g.compraram,
+    })),
+    porEvento: agrupa((d) => d.contact.evento || '(sem página)').map(([evento, g]) => ({
+      evento,
+      total: g.total,
+      compraram: g.compraram,
+      taxa: g.total > 0 ? g.compraram / g.total : 0,
+      receita: g.receita,
+    })),
   }
 }

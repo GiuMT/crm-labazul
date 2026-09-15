@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getContact, getStages } from '@/lib/data'
-import { dateShort, money, waLink } from '@/lib/format'
+import { dateShort, money, papelLegivel, waLink } from '@/lib/format'
 import FichaActions from '@/components/FichaActions'
 
 export const dynamic = 'force-dynamic'
@@ -63,6 +63,10 @@ export default async function FichaPage({ params }: { params: { id: string } }) 
                     <span className="text-slate-500">{contact.phone || '—'}</span>
                   )}
                 </dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">Papel no laboratório</dt>
+                <dd className="text-marca-azul">{papelLegivel(contact.papel) || '—'}</dd>
               </div>
               <div>
                 <dt className="text-slate-400">Origem</dt>

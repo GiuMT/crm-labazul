@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { dateShort, money, paginaDoEvento } from '@/lib/format'
+import { dateShort, money, paginaDoEvento, PAPEIS, papelLegivel } from '@/lib/format'
 import type { Column, Card } from '@/lib/data'
 import DateFilter from './DateFilter'
 
@@ -33,6 +33,23 @@ function TempoNaFila({ dias }: { dias: number }) {
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${cor}`}>
       {dias}d esperando
+    </span>
+  )
+}
+
+/**
+ * Papel no laboratorio (lista de espera). Quem decide a compra aparece em azul;
+ * funcionario e quem ainda vai abrir aparecem em ambar, porque pedem outra
+ * conversa, nao a oferta direta.
+ */
+function PapelBadge({ papel }: { papel: string }) {
+  const decisor = PAPEIS[papel]?.decisor ?? false
+  const cor = decisor
+    ? 'bg-marca-primario-100 text-marca-primario-600'
+    : 'bg-amber-100 text-amber-700'
+  return (
+    <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold ${cor}`}>
+      {papelLegivel(papel)}
     </span>
   )
 }
@@ -158,6 +175,7 @@ export default function PipelineBoard({
                       <TempoNaFila dias={card.diasNaFila} />
                     </div>
                     <div className="flex flex-wrap items-center gap-1">
+                      {card.papel && <PapelBadge papel={card.papel} />}
                       {paginaDoEvento(card.evento) && (
                         <span className="inline-block rounded bg-marca-azul px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-marca-ciano">
                           {paginaDoEvento(card.evento)}

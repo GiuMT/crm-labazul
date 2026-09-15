@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeEmail, origemLegivel, comprouByEmail, temMetodoAzulAtivo } from '@/lib/queries'
+import { papelLegivel } from '@/lib/format'
 
 /**
  * Ingestao de LEAD na fila de recuperacao. Protegido por x-ingest-token.
@@ -42,6 +43,8 @@ export async function POST(req: Request) {
   // Em qual funil o card nasce. 'abandono' continua sendo o padrao para nao
   // mudar o comportamento de quem ja chama este endpoint sem o campo.
   const funil = (b.funil as string) || 'abandono'
+  // So vem da lista de espera. Pagina antiga ou funil de abandono: fica nulo.
+  const papel = ((b.papel as string) || '').trim() || null
   const source = origemLegivel(src, utmSource, utmMedium)
   const criadoEm = b.criado_em ? new Date(b.criado_em as string) : new Date()
 
@@ -83,6 +86,9 @@ export async function POST(req: Request) {
           utmContent: existing.utmContent || utmContent,
           utmTerm: existing.utmTerm || utmTerm,
           evento: existing.evento || evento,
+          // Diferente da atribuicao, o papel e informacao sobre a pessoa, nao sobre
+          // de onde ela veio: se ela responder de novo, vale a resposta mais recente.
+          papel: papel || existing.papel,
         },
       })
     : await prisma.contact.create({
@@ -99,6 +105,7 @@ export async function POST(req: Request) {
           utmContent,
           utmTerm,
           evento,
+          papel,
           firstSeenAt: criadoEm,
         },
       })
@@ -129,7 +136,8 @@ export async function POST(req: Request) {
         type: 'sistema',
         text:
           funil === 'lista-espera'
-            ? `Entrou na lista de espera (${evento})`
+            ? `Entrou na lista de espera (${evento})` +
+              (papel ? `. Papel no laboratório: ${papelLegivel(papel)}` : '')
             : `Preencheu o formulário da página de vendas (${evento})`,
         createdAt: criadoEm,
       },

@@ -50,6 +50,9 @@ model Contact {
   utmContent  String? // utm_content — criativo/anuncio
   utmTerm     String? // utm_term    — conjunto de anuncios ou termo
   evento      String? // de qual lancamento veio o lead (ex.: LDF15)
+  // Papel no laboratorio, respondido no pop-up da lista de espera (desde
+  // 15/09/2026): dono | gestor | funcionario | vai-abrir. Rotulos em lib/format.ts.
+  papel       String?
   isCliente   Boolean  @default(false)
   ltv         Decimal  @default(0) @db.Decimal(12, 2)
   firstSeenAt DateTime @default(now()) // "data de entrada" exibida no card

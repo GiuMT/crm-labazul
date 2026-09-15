@@ -57,6 +57,26 @@ export function paginaDoEvento(evento: string | null | undefined): string | null
 }
 
 /**
+ * Papel da pessoa no laboratorio, respondido no pop-up da lista de espera
+ * (desde 15/09/2026). O banco guarda o codigo curto, nunca o texto da opcao:
+ * assim a copy da pergunta pode mudar sem quebrar a leitura dos leads antigos.
+ *
+ * `decisor` marca quem assina a compra. E o que muda a abordagem: com dono e
+ * gestor a conversa e de oferta; com os outros dois, e outra conversa.
+ */
+export const PAPEIS: Record<string, { label: string; decisor: boolean }> = {
+  dono: { label: 'Dono ou sócio', decisor: true },
+  gestor: { label: 'Gestor ou RT', decisor: true },
+  funcionario: { label: 'Funcionário', decisor: false },
+  'vai-abrir': { label: 'Vai abrir lab', decisor: false },
+}
+
+export function papelLegivel(papel: string | null | undefined): string | null {
+  if (!papel) return null
+  return PAPEIS[papel]?.label || papel
+}
+
+/**
  * Normaliza telefone BR pra link do WhatsApp (wa.me/55...).
  * Aceita so digitos; garante DDI 55; insere o 9 em celular antigo (10 digitos com DDD).
  * Retorna null se invalido (nao gera link quebrado).

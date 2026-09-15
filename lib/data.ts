@@ -20,6 +20,7 @@ export type Card = {
   source: string
   criativo: string | null
   evento: string | null
+  papel: string | null
   firstSeenAt: Date
   movedAt: Date
   value: number
@@ -104,6 +105,7 @@ export async function getPipeline(range?: DateFilter, funil: string = FUNIL_PADR
           source: c.source || 'Direto',
           criativo: c.utmContent,
           evento: c.evento,
+          papel: c.papel,
           firstSeenAt: c.firstSeenAt,
           movedAt: d.movedAt,
           value: Number(d.value),

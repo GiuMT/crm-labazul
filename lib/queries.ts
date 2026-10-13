@@ -76,6 +76,7 @@ export type Venda = {
   product_id: string // bigint vem como string
   product_name: string | null
   price_value: string // Decimal vem como string
+  valor_faturado: string // ver SELECT_VENDA
   buyer_name: string | null
   buyer_email: string | null
   tracking_source: string | null
@@ -84,9 +85,22 @@ export type Venda = {
   criativo: string | null
 }
 
+// valor_faturado: preco da oferta SEM os juros do cartao (hotmart_fee.base), que e
+// o que o LabAzul fatura. price_value traz os juros que o comprador paga no
+// parcelado (venda de R$ 2.900 em 7x aparece como R$ 3.318,70). No parcelamento
+// inteligente cada mes e uma linha: a 1a cobranca vale parcela x parcelas e as
+// seguintes valem 0, senao o contrato seria somado varias vezes. Mesmo criterio
+// da view v_lista_espera_vendas (dash id 12 do Metabase).
 const SELECT_VENDA = `
   select transaction, order_date, approved_date, status,
          product_id::text as product_id, product_name, price_value,
+         case
+           when raw->'purchase'->>'recurrency_number' is null
+             then coalesce((raw->'purchase'->'hotmart_fee'->>'base')::numeric, price_value)
+           when (raw->'purchase'->>'recurrency_number')::int = 1
+             then coalesce((raw->'purchase'->'hotmart_fee'->>'base')::numeric, price_value) * installments
+           else 0
+         end as valor_faturado,
          buyer_name, buyer_email, tracking_source, lancamento, fonte, criativo
     from public.vendas`
 
@@ -143,7 +157,7 @@ export async function ltvByEmail(
   produtos: string[] = [PRODUTO_INGRESSO, PRODUTO_BUMP]
 ): Promise<number> {
   const vendas = await getVendasByEmail(email)
-  return aprovadasDesde(vendas, desde, produtos).reduce((s, v) => s + Number(v.price_value || 0), 0)
+  return aprovadasDesde(vendas, desde, produtos).reduce((s, v) => s + Number(v.valor_faturado || 0), 0)
 }
 
 export type LeadPendente = {
